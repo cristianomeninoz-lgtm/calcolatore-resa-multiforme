@@ -2,20 +2,25 @@
 
 ## 🔧 Novità di questa revisione
 
-- **Dipendenze rese più affidabili** (senza un log d'errore specifico
-  questa volta, ho fatto un riesame completo di tutti i file e trovato
-  due punti deboli reali):
-  - `kivy==2.3.0` era fissato a una versione: esistono segnalazioni
-    ufficiali di problemi di compilazione Android proprio con Kivy
-    2.2.0 e versioni successive fissate esplicitamente. Ora la
-    versione non è più fissata, così Buildozer usa quella che sa già
-    compilare correttamente.
-  - Rimosso `pillow` dai requisiti Android: l'app non lo usa (serviva
-    solo a me per preparare le immagini), ed è documentato come causa
-    di errori di compilazione in combinazione con Kivy.
-  - `kivymd` resta fissato a `1.2.0` (necessario: dalla versione 2.0 in
-    poi l'interfaccia interna di KivyMD è cambiata radicalmente e il
-    codice di questa app non sarebbe più compatibile).
+- **Causa reale del terzo errore trovata (grazie al log completo che hai
+  condiviso)**: Buildozer era impostato per compilare per **due
+  architetture insieme** (`arm64-v8a` e `armeabi-v7a`). Un bug recente
+  e documentato di python-for-android (corretto a monte solo a fine
+  luglio 2026) fa sì che, compilando due architetture di seguito nella
+  stessa esecuzione, la seconda trovi un'installazione di `pip`
+  corrotta lasciata dalla prima — questo è ciò che causava sia
+  l'errore `BuildDependencyInstallError` sia la cascata di tentativi
+  con decine di versioni diverse di `kivymd` che si vedeva nel log
+  (non era affatto un problema di quale versione di KivyMD fosse
+  scelta). **Corretto compilando per una sola architettura,
+  `arm64-v8a`** — quella di tutti gli smartphone Android recenti — che
+  evita del tutto quel percorso di codice difettoso.
+- **Dipendenze rese più affidabili** (dalla revisione precedente):
+  rimosso il pin `kivy==2.3.0` (bug noto di compilazione su Kivy 2.2+)
+  e rimosso `pillow` dai requisiti Android (inutilizzato e causa nota
+  di errori). `kivymd` resta fissato a `1.2.0`: dalla versione 2.0 in
+  poi l'interfaccia interna è cambiata radicalmente e il codice di
+  questa app non sarebbe più compatibile.
 - **Secondo errore di build trovato e corretto** (revisione precedente):
   nel primo tentativo di passare all'immagine Docker ufficiale avevo
   forzato un comando manuale (`chown`) sovrascrivendo l'avvio interno
@@ -185,6 +190,11 @@ traduzioni automatiche del browser che possono alterare nomi tecnici
 
 - Il file `buildozer.spec` è già configurato con nome, icona, schermata
   di avvio (presplash) e permessi minimi necessari.
+- **Compatibilità telefoni**: l'app è compilata solo per architettura
+  `arm64-v8a` (64 bit), quella di tutti gli smartphone Android venduti
+  da diversi anni a questa parte. Non si installerà su telefoni molto
+  vecchi (indicativamente pre-2018, solo 32 bit) — una platea ormai
+  molto ridotta.
 - Non è richiesto nessun permesso invasivo: l'app non accede a
   contatti, posizione, fotocamera, ecc.
 - Se in futuro vuoi pubblicare l'app sul Google Play Store, serve in

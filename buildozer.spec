@@ -40,7 +40,14 @@ android.permissions =
 android.api = 34
 android.minapi = 21
 android.ndk = 25b
-android.archs = arm64-v8a, armeabi-v7a
+# Una sola architettura (arm64-v8a, quella di tutti gli smartphone
+# Android recenti): compilare per due architetture insieme attiva un
+# bug noto e recente di python-for-android che corrompe l'installazione
+# di pip a metà build, causando errori di dipendenze (tra cui proprio
+# quello con le tante versioni di kivymd). Se in futuro serve supportare
+# anche dispositivi molto vecchi (pre-2018 circa), si può aggiungere
+# ", armeabi-v7a" una volta che quel bug sarà risolto a monte.
+android.archs = arm64-v8a
 android.accept_sdk_license = True
 android.allow_backup = True
 
