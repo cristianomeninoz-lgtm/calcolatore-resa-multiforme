@@ -1,0 +1,47 @@
+name: Build APK Android
+
+# Si avvia automaticamente ad ogni "push" sul ramo principale, e puo'
+# anche essere avviato a mano dalla scheda "Actions" su GitHub
+# (pulsante "Run workflow").
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica il codice del progetto
+        uses: actions/checkout@v4
+
+      # Compiliamo usando DIRETTAMENTE l'immagine Docker ufficiale di
+      # Buildozer, mantenuta dal team Kivy (hub.docker.com/r/kivy/buildozer),
+      # invece dell'azione di terze parti "ArtemSBulgakov/buildozer-action"
+      # (il cui Dockerfile interno ha smesso di funzionare per un problema
+      # esterno). Usiamo il comando esatto documentato ufficialmente da
+      # Kivy: l'immagine gestisce da sola, al proprio avvio, i permessi
+      # della cartella montata — non serve (anzi, rompe tutto) intervenire
+      # manualmente con chown o sovrascrivere il suo entrypoint.
+      - name: Compila l'APK con l'immagine ufficiale Buildozer (Kivy)
+        run: |
+          docker run --rm \
+            --volume "${{ github.workspace }}:/home/user/hostcwd" \
+            kivy/buildozer android debug
+
+      - name: Individua il file APK generato
+        id: find_apk
+        run: |
+          APK_PATH=$(find bin -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Nessun file .apk trovato nella cartella bin/"
+            exit 1
+          fi
+          echo "Trovato: $APK_PATH"
+          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Carica l'APK come risultato della compilazione
+        uses: actions/upload-artifact@v4
+        with:
+          name: calcolatore-resa-apk
+          path: ${{ steps.find_apk.outputs.path }}
