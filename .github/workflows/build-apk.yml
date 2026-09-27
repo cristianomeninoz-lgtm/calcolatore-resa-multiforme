@@ -27,21 +27,4 @@ jobs:
         run: |
           docker run --rm \
             --volume "${{ github.workspace }}:/home/user/hostcwd" \
-            kivy/buildozer android debug
-
-      - name: Individua il file APK generato
-        id: find_apk
-        run: |
-          APK_PATH=$(find bin -name "*.apk" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "Nessun file .apk trovato nella cartella bin/"
-            exit 1
-          fi
-          echo "Trovato: $APK_PATH"
-          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Carica l'APK come risultato della compilazione
-        uses: actions/upload-artifact@v4
-        with:
-          name: calcolatore-resa-apk
-          path: ${{ steps.find_apk.outputs.path }}
+            kivy/buildozer android deb
