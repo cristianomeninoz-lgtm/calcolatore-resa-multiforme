@@ -16,6 +16,7 @@ Realizzato da Ninoz Sistem per la Cooperativa Multiforme di Soave (VR).
 import os
 import json
 import math
+import traceback
 from datetime import datetime
 
 from kivy.app import App
@@ -274,6 +275,33 @@ def field_label(text):
     )
 
 
+def section_title_row(text, on_reset=None):
+    """Titolo di sezione con, opzionalmente, un piccolo pulsante
+    'Reimposta' allineato a destra — utile per tornare rapidamente ai
+    valori di partenza dopo aver fatto più calcoli di fila."""
+    row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=dp(28))
+    row.add_widget(section_title(text))
+    if on_reset:
+        reset_btn = MDIconButton(
+            icon="restore", theme_text_color="Custom", text_color=COLOR_MUTED,
+            size_hint=(None, None), size=(dp(28), dp(28)),
+        )
+        reset_btn.bind(on_release=lambda *_: on_reset())
+        row.add_widget(reset_btn)
+    return row
+
+
+def focus_select_all(text_field):
+    """Seleziona tutto il testo quando si tocca un campo numerico, così
+    per correggere un valore basta scrivere subito il nuovo, senza
+    dover prima cancellare a mano quello vecchio."""
+    def on_focus(instance, has_focus):
+        if has_focus:
+            instance.select_all()
+    text_field.bind(focus=on_focus)
+    return text_field
+
+
 def styled_spinner(values, initial, on_select):
     sp = Spinner(
         text=initial, values=values, size_hint_y=None, height=dp(46),
@@ -293,7 +321,7 @@ def number_field(hint, value="", suffix=""):
         size_hint_y=None,
         height=dp(48),
     )
-    return tf
+    return focus_select_all(tf)
 
 
 class SegmentedControl(MDBoxLayout):
@@ -340,6 +368,7 @@ class WeightField(MDBoxLayout):
             hint_text=f"{hint} (kg)", text=fmt(kg_value), input_filter=decimal_filter,
             input_type="number", size_hint_x=1,
         )
+        focus_select_all(self.input)
         self.input.bind(text=lambda *_: self._changed())
         self.unit_btn = MDRaisedButton(
             text="kg", size_hint=(None, None), width=dp(56), height=dp(40),
@@ -526,7 +555,7 @@ class JamContent(ScrollView):
 
         # --- Calcolo ---
         calc = Card()
-        calc.add_widget(section_title("⚖️  Calcolo"))
+        calc.add_widget(section_title_row("⚖️  Calcolo", on_reset=self._reset_calc))
         calc.add_widget(MDLabel(
             text="Scegli il verso del calcolo:", font_style="Caption",
             theme_text_color="Custom", text_color=COLOR_MUTED,
@@ -617,6 +646,17 @@ class JamContent(ScrollView):
     def _on_mode_changed(self, is_forward):
         self.mode_forward = is_forward
         self._refresh_dynamic_fields()
+        self.calculate()
+
+    def _reset_calc(self):
+        """Riporta la sezione 'Calcolo' ai valori di partenza, comodo
+        dopo aver fatto più simulazioni di fila."""
+        if not self.mode_forward:
+            self.mode_switch._select(True)
+        self.manual_sugar_switch.active = False
+        self.weight_field.set_kg(10)
+        self.jars_wanted_field.text = "100"
+        self.sugar_field.set_kg(5)
         self.calculate()
 
     def _on_manual_sugar_toggled(self, instance, active):
@@ -751,7 +791,7 @@ class TomatoContent(ScrollView):
         root.add_widget(recipe)
 
         calc = Card()
-        calc.add_widget(section_title("⚖️  Calcolo"))
+        calc.add_widget(section_title_row("⚖️  Calcolo", on_reset=self._reset_calc))
         calc.add_widget(MDLabel(
             text="Scegli il verso del calcolo:", font_style="Caption",
             theme_text_color="Custom", text_color=COLOR_MUTED,
@@ -818,6 +858,14 @@ class TomatoContent(ScrollView):
     def _on_mode_changed(self, is_forward):
         self.mode_forward = is_forward
         self._refresh_dynamic_fields()
+        self.calculate()
+
+    def _reset_calc(self):
+        """Riporta la sezione 'Calcolo' ai valori di partenza."""
+        if not self.mode_forward:
+            self.mode_switch._select(True)
+        self.weight_field.set_kg(20)
+        self.bottles_wanted_field.text = "50"
         self.calculate()
 
     def _add_jar_size(self):
@@ -906,11 +954,19 @@ class TomatoContent(ScrollView):
 
 class CalcolatoreApp(MDApp):
     def build(self):
+        # Se qualcosa va storto nella costruzione della schermata,
+        # mostriamo l'errore a schermo (con un modo per condividerlo)
+        # invece di chiudere l'app di colpo senza alcuna spiegazione.
+        try:
+            return self._build_ui()
+        except Exception:
+            return self._build_error_screen(traceback.format_exc())
+
+    def _build_ui(self):
         self.title = APP_TITLE
-        self.icon = ICON_PATH
+        self.icon = ICON_PATH if os.path.exists(ICON_PATH) else None
         self.theme_cls.theme_style = "Light"
         self.theme_cls.primary_palette = "Teal"
-        self.theme_cls.primary_hue = "900"
         self.theme_cls.accent_palette = "Orange"
         Window.clearcolor = COLOR_BG
 
@@ -944,20 +1000,79 @@ class CalcolatoreApp(MDApp):
 
         root.add_widget(header)
 
-        # Navigazione in basso (equivalente mobile della sidebar desktop)
-        nav = MDBottomNavigation(panel_color=(1, 1, 1, 1), text_color_normal=COLOR_MUTED,
-                                  text_color_active=COLOR_PRIMARY)
+        # Navigazione in basso (equivalente mobile della sidebar desktop).
+        # Le proprietà di colore extra vengono impostate DOPO la
+        # creazione, una per una e in modo protetto: se una di queste
+        # non esistesse in questa versione di KivyMD, l'app userebbe
+        # semplicemente lo stile di default invece di bloccarsi.
+        nav = MDBottomNavigation()
+        for attr, val in (
+            ("panel_color", (1, 1, 1, 1)),
+            ("text_color_normal", COLOR_MUTED),
+            ("text_color_active", COLOR_PRIMARY),
+        ):
+            try:
+                setattr(nav, attr, val)
+            except Exception:
+                pass
 
-        jam_tab = MDBottomNavigationItem(name="jam", text="Marmellate", icon="fruit-cherries")
+        jam_tab = MDBottomNavigationItem(name="jam", text="Marmellate", icon="food-apple")
         jam_tab.add_widget(JamContent(self.data))
         nav.add_widget(jam_tab)
 
-        tom_tab = MDBottomNavigationItem(name="tomato", text="Passata", icon="bottle-tonic-plus")
+        tom_tab = MDBottomNavigationItem(name="tomato", text="Passata", icon="cup")
         tom_tab.add_widget(TomatoContent(self.data))
         nav.add_widget(tom_tab)
 
         root.add_widget(nav)
         return root
+
+    def _build_error_screen(self, tb_text):
+        """Schermata di emergenza: se l'avvio normale fallisce, mostra
+        l'errore invece di chiudere l'app senza spiegazioni, e permette
+        di salvarlo/condividerlo per poterlo correggere."""
+        try:
+            log_path = os.path.join(self.user_data_dir, "ultimo_errore.txt")
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(tb_text)
+        except Exception:
+            log_path = None
+
+        box = MDBoxLayout(orientation="vertical", padding=dp(16), spacing=dp(12),
+                           md_bg_color=(1, 1, 1, 1))
+        box.add_widget(MDLabel(
+            text="⚠️ Si è verificato un errore all'avvio",
+            bold=True, font_style="H6", theme_text_color="Custom",
+            text_color=(0.7, 0.15, 0.1, 1), size_hint_y=None, height=dp(40),
+        ))
+        box.add_widget(MDLabel(
+            text="Copia o condividi il testo qui sotto e inviamelo: mi serve per correggere il problema.",
+            font_style="Body2", theme_text_color="Custom", text_color=COLOR_MUTED,
+            size_hint_y=None, height=dp(48),
+        ))
+
+        scroll = ScrollView()
+        err_label = MDLabel(
+            text=tb_text, theme_text_color="Custom", text_color=(0.3, 0.05, 0.05, 1),
+            font_style="Caption", size_hint_y=None, halign="left", valign="top",
+        )
+        err_label.bind(
+            width=lambda inst, w: setattr(inst, "text_size", (w, None)),
+            texture_size=lambda inst, ts: setattr(inst, "height", ts[1]),
+        )
+        scroll.add_widget(err_label)
+        box.add_widget(scroll)
+
+        btn_row = MDBoxLayout(orientation="horizontal", spacing=dp(10),
+                               size_hint_y=None, height=dp(46))
+        copy_btn = MDFlatButton(text="📋 Copia", on_release=lambda *_: copy_text(tb_text))
+        share_btn = MDRaisedButton(text="📤 Condividi", md_bg_color=COLOR_ACCENT,
+                                    on_release=lambda *_: share_text(tb_text))
+        btn_row.add_widget(copy_btn)
+        btn_row.add_widget(share_btn)
+        box.add_widget(btn_row)
+
+        return box
 
     def _show_about(self):
         dialog = MDDialog(
@@ -979,4 +1094,36 @@ class CalcolatoreApp(MDApp):
 
 
 if __name__ == "__main__":
-    CalcolatoreApp().run()
+    try:
+        CalcolatoreApp().run()
+    except Exception:
+        # Ultima rete di sicurezza: se anche l'avvio di KivyMD fallisce
+        # (non solo la costruzione della schermata, già gestita sopra),
+        # mostriamo l'errore con Kivy "puro", che non dipende da KivyMD,
+        # invece di lasciare che l'app si chiuda senza spiegazioni.
+        tb_text = traceback.format_exc()
+        try:
+            with open(os.path.join(BASE_DIR, "ultimo_errore.txt"), "w", encoding="utf-8") as f:
+                f.write(tb_text)
+        except Exception:
+            pass
+
+        from kivy.app import App as _KivyApp
+        from kivy.uix.scrollview import ScrollView as _SV
+        from kivy.uix.label import Label as _Label
+
+        class _CrashApp(_KivyApp):
+            def build(self):
+                sv = _SV()
+                lbl = _Label(
+                    text="ERRORE ALL'AVVIO — foto/copia questa schermata:\n\n" + tb_text,
+                    size_hint_y=None, halign="left", valign="top",
+                )
+                lbl.bind(
+                    width=lambda i, w: setattr(i, "text_size", (w, None)),
+                    texture_size=lambda i, ts: setattr(i, "height", ts[1]),
+                )
+                sv.add_widget(lbl)
+                return sv
+
+        _CrashApp().run()

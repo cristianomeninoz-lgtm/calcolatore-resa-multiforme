@@ -2,6 +2,27 @@
 
 ## 🔧 Novità di questa revisione
 
+- **L'app compila ma si chiudeva subito dopo lo splash**: senza un log
+  del telefono (logcat) non è possibile sapere la riga esatta che
+  falliva, quindi ho aggiunto una "rete di sicurezza" a due livelli:
+  se qualcosa va storto all'avvio, invece di chiudersi **l'app ora
+  mostra l'errore esatto a schermo**, con un pulsante per copiarlo o
+  condividerlo — se dovesse ricapitare, basterà una foto di quella
+  schermata per individuare la causa precisa al primo colpo.
+- **Icone di navigazione rese più sicure**: alcuni nomi di icone usati
+  potevano non essere disponibili nella libreria inclusa nell'app;
+  sostituiti con icone più comuni e garantite.
+- **Impostazione di tema rimossa** perché non supportata da tutte le
+  combinazioni di versioni (poteva essere una causa del crash).
+- **Nuovo pulsante "↺ Reimposta"** accanto a "Calcolo" in entrambe le
+  schede: riporta rapidamente peso, modalità e zucchero manuale ai
+  valori di partenza dopo aver fatto più prove di fila.
+- **Tocca un campo numerico per selezionarlo tutto**: comodo per
+  sostituire un valore senza doverlo cancellare a mano prima.
+- **"Tipo di prodotto" si disattiva visivamente** quando si specifica
+  lo zucchero a mano, per chiarire che in quel caso non influisce sul
+  calcolo.
+
 - **Causa reale del terzo errore trovata (grazie al log completo che hai
   condiviso)**: Buildozer era impostato per compilare per **due
   architetture insieme** (`arm64-v8a` e `armeabi-v7a`). Un bug recente
